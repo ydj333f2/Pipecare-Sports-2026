@@ -181,13 +181,13 @@ elif st.session_state.step != 100:
             else:
                 st.error("Select at least one event.")
 
-    # --- STEP 10: CONFIGURATION (HTML Wrappers Removed for native Streamlit flow) ---
+    # --- STEP 10: CONFIGURATION (HTML Wrappers Purged completely) ---
     elif st.session_state.step == 10:
         game = st.session_state.game_queue[st.session_state.queue_index]
         st.markdown(f'<div class="step-header">Configuring: {game} <span style="font-size: 1rem; color: #718096;">({st.session_state.queue_index + 1} of {len(st.session_state.game_queue)})</span></div>', unsafe_allow_html=True)
         
         with st.container():
-            st.markdown("---") # Replaced empty HTML div with clean Streamlit divider
+            st.markdown("---") # Native Streamlit visual separator
             
             if game == "Cricket":
                 c_ball = st.radio("Primary Ball Preference", ["Tennis", "Leather"], horizontal=True)
@@ -226,7 +226,7 @@ elif st.session_state.step != 100:
                     col_d1, col_d2 = st.columns(2)
                     b_rules["Formats"]["Doubles"] = {
                         "Points": col_d1.selectbox("Scoring System", ["15 Pts", "21 Pts"], key="d_pts"),
-                        "Sets": col_d2.selectbox("Match Length", ["Best of 3", "Best of 5"], key="d_set") # Fixed missing match length
+                        "Sets": col_d2.selectbox("Match Length", ["Best of 3", "Best of 5"], key="d_set") # Fully restored
                     }
                 st.session_state.form_data['game_rules']['Badminton'] = b_rules
 
