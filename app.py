@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import os
 from datetime import datetime
 import smtplib
@@ -15,12 +14,11 @@ st.set_page_config(page_title="PIPECARE Sports 2026", layout="wide", page_icon="
 st.markdown("""
     <style>
     .stApp { background-color: #f0f4f8; color: #102a43; }
-    .stButton>button { width: 100%; border-radius: 10px; background-color: #243b53; color: white; height: 3.5em; font-weight: bold; border: none; transition: 0.3s; }
-    .stButton>button:hover { background-color: #334e68; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .stButton>button { width: 100%; border-radius: 10px; background-color: #243b53; color: white; height: 3.5em; font-weight: bold; border: none; }
     .step-header { color: #102a43; font-weight: 800; font-size: 1.8rem; margin-bottom: 15px; border-bottom: 4px solid #48bb78; padding-bottom: 10px; }
     .config-card { background: white; padding: 25px; border-radius: 15px; border: 1px solid #d9e2ec; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); color: #102a43; }
     .hr-notice { padding: 20px; background-color: #fffaf0; border-left: 6px solid #f6ad55; border-radius: 8px; color: #7b341e; font-size: 1rem; margin: 20px 0; }
-    .receipt-box { padding: 25px; border-radius: 15px; background: #ffffff; border: 2px solid #243b53; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+    .receipt-box { padding: 25px; border-radius: 15px; background: #ffffff; border: 2px solid #243b53; box-shadow: 0 10px 15px rgba(0,0,0,0.1); color: black; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,7 +82,7 @@ elif st.session_state.step > 0:
                 st.rerun()
             else: st.error("Name and WhatsApp are mandatory.")
 
-    # STEP 2: ROLE
+    # STEP 2: ROLE SELECTION
     elif st.session_state.step == 2:
         st.markdown('<div class="step-header">02. Participation Role</div>', unsafe_allow_html=True)
         role = st.selectbox("I am joining as:", ["Athlete (Player)", "Audience/Support", "Not Participating"], 
@@ -101,9 +99,9 @@ elif st.session_state.step > 0:
     elif st.session_state.step == 3:
         st.markdown('<div class="step-header">03. Logistics & Schedule</div>', unsafe_allow_html=True)
         st.session_state.form_data['schedule'] = st.selectbox("Preferred Day", ["Friday (Last Working Day)", "Saturday", "Sunday"])
-        st.session_state.form_data['travel'] = st.select_slider("Willing to Travel from Office", options=["10 km", "20 km", "30 km"])
+        st.session_state.form_data['travel'] = st.select_slider("Willing to Travel (from Office)", options=["10 km", "20 km", "30 km"])
         
-        st.markdown('<div class="hr-notice"><b>📢 HR & ATTIRE POLICY:</b> Proper sports gear is required. Badminton participants MUST bring their own non-marking court shoes, attire, and racquets. Final schedules depend on registration density.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hr-notice"><b>📢 HR & ATTIRE POLICY:</b> Badminton participants MUST bring their own non-marking court shoes, attire, and racquets. Final schedules depend on registration density.</div>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         if col1.button("⬅️ Back"): st.session_state.step = 2; st.rerun()
@@ -114,7 +112,6 @@ elif st.session_state.step > 0:
     # STEP 4: DETAILED GAME CONFIG
     elif st.session_state.step == 4:
         st.markdown('<div class="step-header">04. Game Specific Rules</div>', unsafe_allow_html=True)
-        
         sports = st.multiselect("Select your game(s):", ["Cricket", "Badminton", "Table Tennis", "Snooker/Billiards", "Chess", "Carrom", "Other"], 
                                 default=st.session_state.form_data.get('selected_list', []))
         st.session_state.form_data['selected_list'] = sports
@@ -186,18 +183,18 @@ elif st.session_state.step > 0:
         if "Other" in sports:
             rules['Other'] = st.text_input("Specify Game and Preferred Rules:")
 
-        st.session_state.form_data['game_rules'] = str(rules)
-        st.session_state.form_data['suggestions'] = st.text_area("Final comments/suggestions for HR?")
+        st.session_state.form_data['game_rules'] = rules
+        st.session_state.form_data['suggestions'] = st.text_area("Final suggestions for HR?")
 
         col1, col2 = st.columns(2)
         if col1.button("⬅️ Back"): st.session_state.step = 3; st.rerun()
-        if col2.button("Review & Finish ➡️"):
+        if col2.button("Review & Finalize ➡️"):
             if sports: st.session_state.step = 5; st.rerun()
             else: st.error("Please select a game.")
 
-    # STEP 5: RECEIPT & PRO DASHBOARD
+    # STEP 5: RECEIPT & ELITE DASHBOARD
     elif st.session_state.step == 5:
-        st.markdown('<div class="step-header">05. Validation & Live Pulse</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header">05. Validation & Live Analytics</div>', unsafe_allow_html=True)
         
         if not st.session_state.submitted:
             # PRE-SUBMISSION
@@ -211,14 +208,12 @@ elif st.session_state.step > 0:
                 st.session_state.form_data['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 save_data(st.session_state.form_data)
                 st.session_state.submitted = True
-                st.balloons()
-                st.rerun()
+                st.balloons(); st.rerun()
         
         else:
             # POST-SUBMISSION: RECEIPT BESIDE DASHBOARD
             st.success("✅ Success! Your registration is captured.")
-            
-            dash_l, dash_r = st.columns([1, 1.5], gap="large")
+            dash_l, dash_r = st.columns([1, 2], gap="large")
             
             with dash_l:
                 st.markdown('<div class="receipt-box">', unsafe_allow_html=True)
@@ -226,31 +221,41 @@ elif st.session_state.step > 0:
                 st.write(f"**{st.session_state.form_data['name']}** ({st.session_state.form_data['unit']})")
                 st.write(f"**Role:** {st.session_state.form_data['role']}")
                 st.write(f"**Preferred Day:** {st.session_state.form_data.get('schedule')}")
-                st.write("**Rules Configured:**")
-                st.write(st.session_state.form_data.get('game_rules'))
+                st.json(st.session_state.form_data.get('game_rules'))
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                if st.button("🔄 Change/Update Response"):
-                    st.session_state.submitted = False
-                    st.session_state.step = 1; st.rerun()
+                if st.button("🔄 Edit/Update Response"):
+                    st.session_state.submitted = False; st.session_state.step = 1; st.rerun()
                 
                 app_url = "https://your-app.streamlit.app"
                 wa_msg = quote(f"Hey! I registered for PIPECARE Sports 2026. Join here: {app_url}")
                 st.markdown(f'<a href="https://wa.me/?text={wa_msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:10px;">Share via WhatsApp ✅</button></a>', unsafe_allow_html=True)
 
             with dash_r:
-                st.subheader("💹 Real-Time Analytics")
+                st.subheader("💹 Real-Time Elite Analytics")
                 df = pd.read_csv(DB_FILE) if os.path.exists(DB_FILE) else pd.DataFrame()
                 if not df.empty:
                     # Metric Row
-                    m1, m2 = st.columns(2)
+                    m1, m2, m3 = st.columns(3)
                     m1.metric("Total Players", len(df[df['role'] == "Athlete (Player)"]))
                     m2.metric("Noida Workshop Participation", len(df[df['unit'] == "Noida Workshop"]))
+                    m3.metric("Avg Travel (KM)", df['travel'].str.extract('(\d+)').astype(int).mean().iloc[0].round(1))
                     
                     # Pro Charts
+                    c_a, c_b = st.columns(2)
                     fig1 = px.pie(df, names='role', hole=0.5, title="Attendance Topology", color_discrete_sequence=px.colors.qualitative.Prism)
-                    st.plotly_chart(fig1, use_container_width=True)
+                    c_a.plotly_chart(fig1, use_container_width=True)
                     
                     if 'schedule' in df.columns:
                         fig2 = px.histogram(df[df['role']!='Not Participating'], x='schedule', color='unit', barmode='group', title="Logistics Heatmap")
-                        st.plotly_chart(fig2, use_container_width=True)
+                        c_b.plotly_chart(fig2, use_container_width=True)
+
+                    # Dynamic Rule Analytics
+                    st.markdown("### 🔍 Match Rule Selection Deep-Dive")
+                    df['game_rules'] = df['game_rules'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+                    
+                    # Cricket Ball Preference
+                    c_balls = [r['Cricket']['Ball'] for r in df['game_rules'] if isinstance(r, dict) and 'Cricket' in r]
+                    if c_balls:
+                        fig3 = px.pie(pd.Series(c_balls).value_counts(), names=pd.Series(c_balls).value_counts().index, title="Cricket: Ball Type Preference", hole=0.3)
+                        st.plotly_chart(fig3, use_container_width=True)
