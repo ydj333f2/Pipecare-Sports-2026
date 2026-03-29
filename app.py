@@ -1,28 +1,31 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 from datetime import datetime
 import smtplib
 import random
 from urllib.parse import quote
+import ast
 
-# --- 1. SET THEME (MILD SKYBLUE & CORPORATE BLUE) ---
-st.set_page_config(page_title="PIPECARE Sports 2026", layout="centered", page_icon="🏆")
+# --- 1. PRO THEME & UI ---
+st.set_page_config(page_title="PIPECARE Sports 2026", layout="wide", page_icon="🏆")
 
 st.markdown("""
     <style>
-    .stApp { background-color: #e3f2fd; color: #0d47a1; }
-    .stButton>button { width: 100%; border-radius: 8px; background-color: #1976d2; color: white; height: 3em; border: none; font-weight: bold; }
-    .step-header { color: #0d47a1; font-weight: bold; font-size: 1.5rem; margin-bottom: 20px; border-bottom: 2px solid #1976d2; padding-bottom: 5px; }
-    .hr-box { padding: 15px; background-color: #fff3e0; border-left: 5px solid #ff9800; border-radius: 5px; color: #5d4037; font-size: 0.9rem; margin-top: 10px; }
-    .config-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #bbdefb; margin-bottom: 15px; box-shadow: 2px 2px 8px rgba(0,0,0,0.05); color: black; }
-    .receipt-box { padding: 20px; border-radius: 10px; background: white; border: 2px solid #1976d2; color: black; line-height: 1.6; }
+    .stApp { background-color: #f0f4f8; color: #102a43; }
+    .stButton>button { width: 100%; border-radius: 10px; background-color: #243b53; color: white; height: 3.5em; font-weight: bold; border: none; transition: 0.3s; }
+    .stButton>button:hover { background-color: #334e68; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .step-header { color: #102a43; font-weight: 800; font-size: 1.8rem; margin-bottom: 15px; border-bottom: 4px solid #48bb78; padding-bottom: 10px; }
+    .config-card { background: white; padding: 25px; border-radius: 15px; border: 1px solid #d9e2ec; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); color: #102a43; }
+    .hr-notice { padding: 20px; background-color: #fffaf0; border-left: 6px solid #f6ad55; border-radius: 8px; color: #7b341e; font-size: 1rem; margin: 20px 0; }
+    .receipt-box { padding: 25px; border-radius: 15px; background: #ffffff; border: 2px solid #243b53; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATA & SESSION STATE ---
-DB_FILE = 'sports_data_2026.csv'
+# --- 2. DATA & AUTH CONFIG ---
+DB_FILE = 'pipecare_sports_final.csv'
 GMAIL_USER = st.secrets.get("GMAIL_USER", "")
 GMAIL_PASS = st.secrets.get("GMAIL_PASS", "")
 
@@ -38,50 +41,52 @@ def save_data(data_dict):
     new_df = pd.concat([df, pd.DataFrame([data_dict])], ignore_index=True)
     new_df.to_csv(DB_FILE, index=False)
 
-# --- 3. STEP 0: OTP VERIFICATION (GMAIL SMTP) ---
+# --- 3. STEP 0: SECURE OTP ---
 if not st.session_state.verified:
-    st.title("🏆 PIPECARE Sports Portal")
-    st.subheader("Employee Verification")
-    email = st.text_input("Company Email", placeholder="user@pipecaregroup.com")
-    if st.button("Send Verification Code"):
+    st.title("🏆 PIPECARE Noida Sports Portal")
+    st.subheader("Official Employee Verification")
+    email = st.text_input("Enter Company Email", placeholder="name@pipecaregroup.com")
+    
+    if st.button("Generate Access PIN"):
         if "@pipecaregroup.com" in email.lower():
             otp = str(random.randint(1000, 9999))
             st.session_state.otp_val = otp
             try:
                 server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
                 server.login(GMAIL_USER, GMAIL_PASS)
-                server.sendmail(GMAIL_USER, email, f"Subject: PIPECARE Sports Code\n\nYour 4-digit verification code is: {otp}")
+                server.sendmail(GMAIL_USER, email, f"Subject: PIPECARE Sports PIN\n\nYour 4-digit PIN: {otp}")
                 server.quit()
-                st.success("OTP Sent! Please check your Outlook/Gmail.")
-            except: st.error("Email Error. Please check your st.secrets for GMAIL_USER/PASS.")
+                st.success("Verification PIN sent to your Outlook.")
+            except: st.error("Email Error. Verify st.secrets setup.")
     
-    input_otp = st.text_input("Enter 4-Digit PIN", type="password")
+    input_otp = st.text_input("Enter PIN", type="password")
     if st.button("Verify & Start Registration"):
         if input_otp == st.session_state.get('otp_val'):
             st.session_state.verified = True
             st.session_state.step = 1
             st.rerun()
-        else: st.error("Invalid PIN. Please try again.")
+        else: st.error("Invalid PIN.")
 
 # --- 4. MULTI-STEP FORM LOGIC ---
 elif st.session_state.step > 0:
 
-    # --- STEP 1: IDENTITY ---
+    # STEP 1: IDENTITY
     if st.session_state.step == 1:
-        st.markdown('<div class="step-header">Step 1: Basic Information</div>', unsafe_allow_html=True)
-        st.session_state.form_data['name'] = st.text_input("Full Name*", value=st.session_state.form_data.get('name', ''))
-        st.session_state.form_data['whatsapp'] = st.text_input("WhatsApp Number*", value=st.session_state.form_data.get('whatsapp', ''))
+        st.markdown('<div class="step-header">01. Identity & Location</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        st.session_state.form_data['name'] = c1.text_input("Full Name*", value=st.session_state.form_data.get('name', ''))
+        st.session_state.form_data['whatsapp'] = c2.text_input("WhatsApp Number*", value=st.session_state.form_data.get('whatsapp', ''))
         st.session_state.form_data['unit'] = st.radio("Primary Unit", ["Noida Office", "Noida Workshop"], horizontal=True)
         
-        if st.button("Next: Participation Type ➡️"):
+        if st.button("Next: Participation Role ➡️"):
             if st.session_state.form_data['name'] and st.session_state.form_data['whatsapp']:
                 st.session_state.step = 2
                 st.rerun()
-            else: st.error("Required: Name and WhatsApp Number.")
+            else: st.error("Name and WhatsApp are mandatory.")
 
-    # --- STEP 2: ROLE SELECTION ---
+    # STEP 2: ROLE
     elif st.session_state.step == 2:
-        st.markdown('<div class="step-header">Step 2: Participation Role</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header">02. Participation Role</div>', unsafe_allow_html=True)
         role = st.selectbox("I am joining as:", ["Athlete (Player)", "Audience/Support", "Not Participating"], 
                             index=["Athlete (Player)", "Audience/Support", "Not Participating"].index(st.session_state.form_data.get('role', "Athlete (Player)")))
         st.session_state.form_data['role'] = role
@@ -92,14 +97,13 @@ elif st.session_state.step > 0:
             st.session_state.step = 5 if role == "Not Participating" else 3
             st.rerun()
 
-    # --- STEP 3: LOGISTICS (BEFORE GAMES) ---
+    # STEP 3: LOGISTICS (BEFORE GAMES)
     elif st.session_state.step == 3:
-        st.markdown('<div class="step-header">Step 3: Logistics & Schedule</div>', unsafe_allow_html=True)
-        st.session_state.form_data['schedule'] = st.selectbox("Preferred Day", ["Friday (Last Working Day)", "Saturday", "Sunday"],
-                                                              index=["Friday (Last Working Day)", "Saturday", "Sunday"].index(st.session_state.form_data.get('schedule', "Friday (Last Working Day)")))
-        st.session_state.form_data['travel'] = st.select_slider("Willing to Travel (from Office)", options=["10 km", "20 km", "30 km"], value=st.session_state.form_data.get('travel', "20 km"))
+        st.markdown('<div class="step-header">03. Logistics & Schedule</div>', unsafe_allow_html=True)
+        st.session_state.form_data['schedule'] = st.selectbox("Preferred Day", ["Friday (Last Working Day)", "Saturday", "Sunday"])
+        st.session_state.form_data['travel'] = st.select_slider("Willing to Travel from Office", options=["10 km", "20 km", "30 km"])
         
-        st.markdown('<div class="hr-box"><b>📢 HR & Attire Note:</b> Proper sports attire is mandatory. Badminton requires non-marking court shoes. Match schedules are subject to participation numbers.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hr-notice"><b>📢 HR & ATTIRE POLICY:</b> Proper sports gear is required. Badminton participants MUST bring their own non-marking court shoes, attire, and racquets. Final schedules depend on registration density.</div>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         if col1.button("⬅️ Back"): st.session_state.step = 2; st.rerun()
@@ -107,102 +111,103 @@ elif st.session_state.step > 0:
             st.session_state.step = 4 if st.session_state.form_data['role'] == "Athlete (Player)" else 5
             st.rerun()
 
-    # --- STEP 4: DETAILED GAME CONFIGURATIONS ---
+    # STEP 4: DETAILED GAME CONFIG
     elif st.session_state.step == 4:
-        st.markdown('<div class="step-header">Step 4: Game-Specific Rules</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header">04. Game Specific Rules</div>', unsafe_allow_html=True)
         
-        sports = st.multiselect("Select the games you will play:", ["Cricket", "Badminton", "Table Tennis", "Snooker/Billiards", "Chess", "Carrom", "Other"],
-                                default=st.session_state.form_data.get('selected_sports_list', []))
-        st.session_state.form_data['selected_sports_list'] = sports
-        details = {}
+        sports = st.multiselect("Select your game(s):", ["Cricket", "Badminton", "Table Tennis", "Snooker/Billiards", "Chess", "Carrom", "Other"], 
+                                default=st.session_state.form_data.get('selected_list', []))
+        st.session_state.form_data['selected_list'] = sports
+        rules = {}
 
         if "Cricket" in sports:
             with st.container():
-                st.markdown('<div class="config-card">🏏 <b>Cricket Configuration</b>', unsafe_allow_html=True)
-                c_ways = st.multiselect("Format Choice:", ["Proper Ground", "Box Cricket"], key="c_ways")
-                c_ball = st.radio("Ball Type:", ["Tennis", "Leather"], horizontal=True)
-                c_res = f"Ball: {c_ball}. "
+                st.markdown('<div class="config-card">🏏 <b>Cricket</b>', unsafe_allow_html=True)
+                c_ways = st.multiselect("Format Choice:", ["Proper Ground", "Box Cricket"])
+                c_ball = st.radio("Ball Preference:", ["Tennis", "Leather"], horizontal=True)
+                c_data = {"Ball": c_ball, "Formats": c_ways}
                 if "Box Cricket" in c_ways:
-                    c_res += f"Box (Team: {st.selectbox('Box Team Size', [6,8,11])}, Overs: {st.selectbox('Box Overs', [6,8,10])}). "
+                    c_data["Box_Team"] = st.selectbox("Box Team Size", [6, 8, 11])
+                    c_data["Box_Overs"] = st.selectbox("Box Overs", [6, 8, 10])
                 if "Proper Ground" in c_ways:
-                    c_res += f"Ground ({st.radio('Ground Overs', ['10 Overs', '20 Overs'])}). "
-                details['Cricket'] = c_res
+                    c_data["Ground_Overs"] = st.radio("Ground Overs", ["10 Overs", "20 Overs"])
+                rules['Cricket'] = c_data
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Badminton" in sports:
             with st.container():
-                st.markdown('<div class="config-card">🏸 <b>Badminton Configuration</b>', unsafe_allow_html=True)
-                b_ways = st.multiselect("Category Choice:", ["Singles", "Doubles"], key="b_ways")
-                b_res = ""
-                if "Singles" in b_ways:
-                    b_res += f"Singles: {st.selectbox('Singles Pts Format', ['11 (Best of 3)', '15 (Best of 3)', '21 (1 set)', '21 (Best of 3)'])}; "
-                if "Doubles" in b_ways:
-                    b_res += f"Doubles: {st.selectbox('Doubles Pts Format', ['15 (Best of 3)', '21 (Best of 3)'])}; "
-                details['Badminton'] = b_res
+                st.markdown('<div class="config-card">🏸 <b>Badminton</b>', unsafe_allow_html=True)
+                b_cat = st.multiselect("Category Choice:", ["Singles", "Doubles"])
+                b_data = {"Categories": b_cat}
+                if "Singles" in b_cat:
+                    b_data["Singles_Pts"] = st.selectbox("Singles Point System", ["11 (3 sets)", "15 (3 sets)", "21 (1 set)", "21 (3 sets)"])
+                if "Doubles" in b_cat:
+                    b_data["Doubles_Pts"] = st.selectbox("Doubles Point System", ["15 (3 sets)", "21 (3 sets)"])
+                rules['Badminton'] = b_data
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Chess" in sports:
             with st.container():
-                st.markdown('<div class="config-card">♟️ <b>Chess Configuration</b>', unsafe_allow_html=True)
-                details['Chess'] = f"Chess: {st.radio('Environment', ['Online', 'Offline'], horizontal=True)}, {st.selectbox('Format', ['Knockout', 'Round Robin'])}, {st.select_slider('Duration', ['5 mins', '10 mins', '15 mins'])}"
+                st.markdown('<div class="config-card">♟️ <b>Chess</b>', unsafe_allow_html=True)
+                rules['Chess'] = {
+                    "Mode": st.radio("Environment", ["Online", "Offline"], horizontal=True),
+                    "Format": st.selectbox("Format", ["Knockout", "Round Robin"]),
+                    "Timer": st.select_slider("Duration", ["5 mins", "10 mins", "15 mins"])
+                }
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Table Tennis" in sports:
             with st.container():
-                st.markdown('<div class="config-card">🏓 <b>Table Tennis Configuration</b>', unsafe_allow_html=True)
-                details['TT'] = f"TT Category: {st.multiselect('TT Category Choice', ['Singles', 'Doubles'])}, Format: {st.radio('Match Best of', ['3 Sets (11 pts)', '5 Sets (11 pts)'])}"
+                st.markdown('<div class="config-card">🏓 <b>Table Tennis</b>', unsafe_allow_html=True)
+                rules['TT'] = {
+                    "Mode": st.multiselect("Format ", ["Singles", "Doubles"]),
+                    "Rules": st.radio("Match Best of", ["3 Sets (11 pts)", "5 Sets (11 pts)"])
+                }
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Snooker/Billiards" in sports:
             with st.container():
-                st.markdown('<div class="config-card">🎱 <b>Snooker & Billiards</b>', unsafe_allow_html=True)
-                details['Snooker'] = f"{st.radio('Game Selection', ['Snooker', 'Billiards'])}, Style: {st.selectbox('Format Style', ['Point Based (Timed)', 'Frame Based'])}"
+                st.markdown('<div class="config-card">🎱 <b>Snooker/Billiards</b>', unsafe_allow_html=True)
+                rules['Snooker'] = {
+                    "Game": st.radio("Game Type", ["Snooker", "Billiards"]),
+                    "Style": st.selectbox("Scoring", ["Point Based", "Frame Based"])
+                }
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Carrom" in sports:
             with st.container():
-                st.markdown('<div class="config-card">⚪ <b>Carrom Configuration</b>', unsafe_allow_html=True)
-                details['Carrom'] = f"Format: {st.radio('Carrom Choice', ['Singles', 'Doubles'])}, Rule: {st.selectbox('Winning criteria', ['First to 25 pts', 'Best of 3 Boards', '15 mins Timed'])}"
+                st.markdown('<div class="config-card">⚪ <b>Carrom</b>', unsafe_allow_html=True)
+                rules['Carrom'] = {
+                    "Mode": st.radio("Carrom Format", ["Singles", "Doubles"]),
+                    "Winning": st.selectbox("Criteria", ["First to 25 pts", "Best of 3 Boards", "15 mins Timed"])
+                }
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if "Other" in sports:
-            details['Other'] = st.text_input("Other Game Suggestion & Rule Preference:")
+            rules['Other'] = st.text_input("Specify Game and Preferred Rules:")
 
-        st.session_state.form_data['game_details'] = str(details)
-        st.session_state.form_data['suggestions'] = st.text_area("Final suggestions for HR?")
-        
+        st.session_state.form_data['game_rules'] = str(rules)
+        st.session_state.form_data['suggestions'] = st.text_area("Final comments/suggestions for HR?")
+
         col1, col2 = st.columns(2)
         if col1.button("⬅️ Back"): st.session_state.step = 3; st.rerun()
-        if col2.button("Review & Finalize ➡️"):
-            if sports:
-                st.session_state.step = 5
-                st.rerun()
-            else: st.error("Please select at least one sport to play.")
+        if col2.button("Review & Finish ➡️"):
+            if sports: st.session_state.step = 5; st.rerun()
+            else: st.error("Please select a game.")
 
-    # --- STEP 5: FINAL RECEIPT & LIVE ANALYTICS (SIDE-BY-SIDE) ---
+    # STEP 5: RECEIPT & PRO DASHBOARD
     elif st.session_state.step == 5:
-        st.markdown('<div class="step-header">Step 5: Review & Submission</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header">05. Validation & Live Pulse</div>', unsafe_allow_html=True)
         
         if not st.session_state.submitted:
-            # PRE-SUBMISSION REVIEW
+            # PRE-SUBMISSION
             st.write("### Confirm Your Registration Details")
-            col_rev1, col_rev2 = st.columns(2)
-            with col_rev1:
-                st.write(f"**Name:** {st.session_state.form_data['name']}")
-                st.write(f"**Unit:** {st.session_state.form_data['unit']}")
-                st.write(f"**Role:** {st.session_state.form_data['role']}")
-            with col_rev2:
-                st.write(f"**WhatsApp:** {st.session_state.form_data['whatsapp']}")
-                st.write(f"**Schedule:** {st.session_state.form_data.get('schedule', 'N/A')}")
-                st.write(f"**Travel Radius:** {st.session_state.form_data.get('travel', 'N/A')}")
-            
-            st.info(f"**Game Selections:** {st.session_state.form_data.get('game_details', 'None (Audience/Not Attending)')}")
+            st.info(f"**Employee:** {st.session_state.form_data['name']} | **WhatsApp:** {st.session_state.form_data['whatsapp']}")
+            st.write(f"**Selection:** {st.session_state.form_data.get('game_rules', 'Audience/Not Participating')}")
             
             c1, c2 = st.columns(2)
-            if c1.button("✍️ Edit/Go Back"):
-                st.session_state.step = 1
-                st.rerun()
-            if c2.button("🚀 Confirm & Submit Registration"):
+            if c1.button("✍️ Edit Entry"): st.session_state.step = 1; st.rerun()
+            if c2.button("🚀 Submit Final Registration"):
                 st.session_state.form_data['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 save_data(st.session_state.form_data)
                 st.session_state.submitted = True
@@ -210,39 +215,42 @@ elif st.session_state.step > 0:
                 st.rerun()
         
         else:
-            # POST-SUBMISSION VIEW: RECEIPT + LIVE CHARTS
-            st.success("✅ Submission Successful! Thank you for registering.")
+            # POST-SUBMISSION: RECEIPT BESIDE DASHBOARD
+            st.success("✅ Success! Your registration is captured.")
             
-            res_col1, res_col2 = st.columns([1, 1.2], gap="large")
+            dash_l, dash_r = st.columns([1, 1.5], gap="large")
             
-            with res_col1:
+            with dash_l:
                 st.markdown('<div class="receipt-box">', unsafe_allow_html=True)
-                st.subheader("📄 Your Receipt")
-                st.write(f"**Player:** {st.session_state.form_data['name']}")
-                st.write(f"**Status:** {st.session_state.form_data['role']}")
+                st.subheader("Personal Receipt")
+                st.write(f"**{st.session_state.form_data['name']}** ({st.session_state.form_data['unit']})")
+                st.write(f"**Role:** {st.session_state.form_data['role']}")
                 st.write(f"**Preferred Day:** {st.session_state.form_data.get('schedule')}")
-                st.write(f"**Games Configured:** {st.session_state.form_data.get('game_details')}")
+                st.write("**Rules Configured:**")
+                st.write(st.session_state.form_data.get('game_rules'))
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                if st.button("🔄 Edit/Update My Entry"):
+                if st.button("🔄 Change/Update Response"):
                     st.session_state.submitted = False
-                    st.session_state.step = 1
-                    st.rerun()
+                    st.session_state.step = 1; st.rerun()
                 
-                # WhatsApp Share Logic
-                app_link = "https://your-pipecare-sports.streamlit.app" 
-                wa_msg = quote(f"Hey! I registered for the PIPECARE Sports Event. Register yours here: {app_link}")
-                st.markdown(f'<a href="https://wa.me/?text={wa_msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px;">Share Link via WhatsApp ✅</button></a>', unsafe_allow_html=True)
+                app_url = "https://your-app.streamlit.app"
+                wa_msg = quote(f"Hey! I registered for PIPECARE Sports 2026. Join here: {app_url}")
+                st.markdown(f'<a href="https://wa.me/?text={wa_msg}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:10px;">Share via WhatsApp ✅</button></a>', unsafe_allow_html=True)
 
-            with res_col2:
-                st.subheader("📊 Live Event Pulse")
+            with dash_r:
+                st.subheader("💹 Real-Time Analytics")
                 df = pd.read_csv(DB_FILE) if os.path.exists(DB_FILE) else pd.DataFrame()
                 if not df.empty:
-                    # Chart 1: Role Distribution
-                    fig1 = px.pie(df, names='role', hole=0.4, title="Participation Split")
+                    # Metric Row
+                    m1, m2 = st.columns(2)
+                    m1.metric("Total Players", len(df[df['role'] == "Athlete (Player)"]))
+                    m2.metric("Noida Workshop Participation", len(df[df['unit'] == "Noida Workshop"]))
+                    
+                    # Pro Charts
+                    fig1 = px.pie(df, names='role', hole=0.5, title="Attendance Topology", color_discrete_sequence=px.colors.qualitative.Prism)
                     st.plotly_chart(fig1, use_container_width=True)
                     
-                    # Chart 2: Preferred Day by Unit
                     if 'schedule' in df.columns:
-                        fig2 = px.histogram(df[df['role']!='Not Participating'], x='schedule', color='unit', barmode='group', title="Attendance Preference by Unit")
+                        fig2 = px.histogram(df[df['role']!='Not Participating'], x='schedule', color='unit', barmode='group', title="Logistics Heatmap")
                         st.plotly_chart(fig2, use_container_width=True)
