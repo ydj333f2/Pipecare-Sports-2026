@@ -11,9 +11,11 @@ from datetime import datetime
 # ==========================================
 st.set_page_config(page_title="PIPECARE Sports 2026", layout="wide", page_icon="🏆")
 DB_FILE = 'pipecare_sports_master.csv'
-
-# Set your actual deployed Streamlit URL here
 PORTAL_URL = "https://pipecare-sports-2026.streamlit.app" 
+
+# 🚨 ADMIN SECURITY LOCK 🚨
+# Only emails in this list will see the CSV Download button!
+ADMIN_EMAILS = [ "dheeraj.kumar@pipecaregroup.com"] 
 
 st.markdown("""
     <style>
@@ -30,7 +32,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. DATA ENGINE (Hashing, Migration, & Safe Save)
+# 2. DATA ENGINE (Hashing & Safe Save)
 # ==========================================
 @st.cache_data(ttl=60)
 def load_data():
@@ -53,18 +55,15 @@ def save_or_update(data):
     df = load_data()
     save_dict = data.copy()
 
-    # Hash PIN and serialize JSON for CSV safety
     save_dict['pin'] = hash_pin(save_dict['pin'])
     save_dict['game_rules'] = json.dumps(save_dict.get('game_rules', {}))
     save_dict['selected_list'] = json.dumps(save_dict.get('selected_list', []))
 
-    # Overwrite based on Email (Integrity Lock)
     if not df.empty and 'email' in df.columns:
         df = df[df['email'] != save_dict['email']]
 
     new_df = pd.concat([df, pd.DataFrame([save_dict])], ignore_index=True)
 
-    # Safe save (Fixes race conditions during high traffic)
     for _ in range(3):
         try:
             new_df.to_csv(DB_FILE, index=False)
@@ -75,7 +74,6 @@ def save_or_update(data):
     st.cache_data.clear()
 
 def generate_qr(email):
-    # Generates a QR code linking back to the portal for future edits
     safe_id = hash_pin(email)[:8]
     qr = qrcode.QRCode(version=1, box_size=6, border=2)
     qr.add_data(f"Edit Registration:\n{PORTAL_URL}\nUser: {email}")
@@ -117,7 +115,6 @@ if not st.session_state.verified:
                 user_record = df[df['email'] == email_in].iloc[-1]
                 stored_pin = str(user_record['pin'])
                 
-                # Allow both hashed PINs and Legacy plain-text PINs
                 if stored_pin == hash_pin(pin_in) or stored_pin == str(pin_in):
                     rec = user_record.to_dict()
                     rec['selected_list'] = safe_parse(rec.get('selected_list', '[]'))
@@ -145,7 +142,6 @@ elif st.session_state.step < 100:
     progress_val = min(st.session_state.step / 5, 1.0) if st.session_state.step < 10 else 0.8
     st.progress(progress_val)
 
-    # --- STEP 1 ---
     if st.session_state.step == 1:
         st.markdown(f'<div class="step-header">01. Profile: {st.session_state.form["email"]}</div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
@@ -162,7 +158,6 @@ elif st.session_state.step < 100:
                 st.session_state.step = 2; st.rerun()
             else: st.error("Name is required.")
 
-    # --- STEP 2 ---
     elif st.session_state.step == 2:
         st.markdown('<div class="step-header">02. Participation & Logistics</div>', unsafe_allow_html=True)
         role_opts = ["Athlete (Playing)", "Audience/Support", "Not Participating"]
@@ -187,7 +182,6 @@ elif st.session_state.step < 100:
             st.session_state.step = 3 if role == "Athlete (Playing)" else 99 
             st.rerun()
 
-    # --- STEP 3 ---
     elif st.session_state.step == 3:
         st.markdown('<div class="step-header">03. Sports Selection</div>', unsafe_allow_html=True)
         sports_opts = ["Cricket", "Badminton", "Table Tennis", "Chess", "Carrom", "Snooker", "Other"]
@@ -200,15 +194,11 @@ elif st.session_state.step < 100:
             if sports:
                 st.session_state.form['selected_list'] = sports
                 st.session_state.form['game_queue'] = sports
-                
-                # Ghost Data Purge: Remove configs for games unselected during edit
                 st.session_state.form['game_rules'] = {k: v for k, v in st.session_state.form.get('game_rules', {}).items() if k in sports}
-                
                 st.session_state.q_idx = 0
                 st.session_state.step = 10; st.rerun()
             else: st.error("Please select at least one sport.")
 
-    # --- STEP 10 (DYNAMIC GAME CONFIG ENGINE) ---
     elif st.session_state.step == 10:
         game = st.session_state.form['game_queue'][st.session_state.q_idx]
         st.markdown(f'<div class="step-header">Configuring: {game}</div>', unsafe_allow_html=True)
@@ -265,7 +255,6 @@ elif st.session_state.step < 100:
 
             elif game == "Carrom":
                 new_rules['Format'] = st.radio("Format", ["Singles", "Doubles"], index=0, horizontal=True)
-                # RESTORED MISSING LOGIC
                 new_rules['Rules'] = st.selectbox("Winning Condition", ["First to 25 Points", "Best of 3 Boards"], index=1)
 
             elif game == "Snooker":
@@ -291,7 +280,6 @@ elif st.session_state.step < 100:
             else: st.session_state.q_idx += 1
             st.rerun()
 
-    # --- STEP 99: PRE-SUBMIT ---
     elif st.session_state.step == 99:
         st.session_state.form['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M")
         save_or_update(st.session_state.form)
@@ -300,14 +288,17 @@ elif st.session_state.step < 100:
         st.rerun()
 
 # ==========================================
-# 6. DASHBOARD (3-TAB ARCHITECTURE & RETURN QR)
+# 6. DASHBOARD (ALL TABS VISIBLE)
 # ==========================================
 elif st.session_state.step == 100:
     st.balloons()
     
-    tab1, tab2, tab3 = st.tabs(["🎫 My Digital Ticket", "👥 HR & Logistics", "🎯 Tournament Director"])
+    is_admin = st.session_state.form.get('email') in ADMIN_EMAILS
+
+    # Everyone sees all three tabs now
+    tab1, tab2, tab3 = st.tabs(["🎫 My Digital Ticket", "👥 Event Analytics", "🎯 Tournament Deep Dive"])
     
-    # --- TAB 1: TICKET, GUIDELINES & QR ---
+    # --- TAB 1: TICKET VIEW ---
     with tab1:
         col_ticket, col_qr = st.columns([2, 1])
         with col_ticket:
@@ -324,7 +315,6 @@ elif st.session_state.step == 100:
                 st.markdown("---")
                 st.markdown("### 🎮 Approved Match Configurations")
                 
-                # Human Readable Configurations (Replaces raw JSON)
                 rules = st.session_state.form.get('game_rules', {})
                 if not rules:
                     st.write("No specific rules configured.")
@@ -357,13 +347,25 @@ elif st.session_state.step == 100:
             "👟 **Footwear:** **Non-marking sports shoes are strictly mandatory** for Badminton and Table Tennis courts. Formal shoes or hard soles will not be permitted on the court.\n\n"
             "🏸 **Equipment:** Please bring your own **Racquets** for Badminton and TT. All communal equipment (Shuttles, TT Balls, Cricket bats/balls, Carrom boards, Snooker cues) will be provided by the organizing committee."
         )
-        st.success("👉 **Want to see what everyone else is playing?** Click the **'HR & Logistics'** or **'Tournament Director'** tabs at the top of the page to explore live event analytics!")
 
-
-    # --- TAB 2: HR ANALYTICS ---
+    # --- TAB 2: GENERAL EVENT ANALYTICS ---
     with tab2:
         df = load_data()
         if not df.empty:
+            
+            # 🚨 ADMIN-ONLY DATA EXPORT 🚨
+            if is_admin:
+                st.markdown("### 📥 Admin Data Export")
+                csv_data = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Live Master List (CSV)",
+                    data=csv_data,
+                    file_name=f"PIPECARE_Sports_Roster_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime='text/csv',
+                    use_container_width=True
+                )
+                st.markdown("---")
+
             m1, m2, m3 = st.columns(3)
             m1.metric("Total Registrations", len(df))
             m2.metric("Active Athletes", len(df[df['role'] == "Athlete (Playing)"]))
@@ -393,7 +395,7 @@ elif st.session_state.step == 100:
                 fig_sports = px.bar(sc, x="Sport", y="Registrations", title="Overall Game Popularity", color="Sport", color_discrete_sequence=px.colors.qualitative.Prism)
                 st.plotly_chart(fig_sports, use_container_width=True)
 
-    # --- TAB 3: TOURNAMENT DIRECTOR ANALYTICS ---
+    # --- TAB 3: TOURNAMENT DIRECTOR DEEP DIVE ---
     with tab3:
         df = load_data()
         if not df.empty:
@@ -401,13 +403,11 @@ elif st.session_state.step == 100:
             
             r1c1, r1c2 = st.columns(2)
             
-            # Cricket
             c_formats = [fmt for r in df['rules'] if isinstance(r, dict) and 'Cricket' in r for fmt in r['Cricket'].get('Formats', [])]
             if c_formats: 
                 fig_cricket = px.pie(names=pd.Series(c_formats).value_counts().index, values=pd.Series(c_formats).value_counts().values, title="🏏 Cricket: Ground vs Box", hole=0.4, color_discrete_sequence=['#10B981', '#F59E0B'])
                 r1c1.plotly_chart(fig_cricket, use_container_width=True)
 
-            # Badminton
             b_cats = [cat for r in df['rules'] if isinstance(r, dict) and 'Badminton' in r for cat in r['Badminton'].get('Categories', [])]
             if b_cats: 
                 fig_badminton = px.bar(x=pd.Series(b_cats).value_counts().index, y=pd.Series(b_cats).value_counts().values, title="🏸 Badminton: Brackets", labels={'x': 'Category', 'y': 'Entries'}, color_discrete_sequence=['#6366F1'])
@@ -415,13 +415,11 @@ elif st.session_state.step == 100:
 
             r2c1, r2c2 = st.columns(2)
             
-            # Table Tennis
             tt_cats = [cat for r in df['rules'] if isinstance(r, dict) and 'Table Tennis' in r for cat in r['Table Tennis'].get('Categories', [])]
             if tt_cats: 
                 fig_tt = px.pie(names=pd.Series(tt_cats).value_counts().index, values=pd.Series(tt_cats).value_counts().values, title="🏓 Table Tennis: Category Split", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
                 r2c1.plotly_chart(fig_tt, use_container_width=True)
 
-            # Chess
             ch_modes = [r.get('Chess', {}).get('Mode') for r in df['rules'] if isinstance(r, dict) and 'Chess' in r]
             if ch_modes: 
                 fig_chess = px.pie(names=pd.Series(ch_modes).value_counts().index, values=pd.Series(ch_modes).value_counts().values, title="♟️ Chess: Mode Preference", hole=0.4, color_discrete_sequence=['#8B5CF6', '#EC4899'])
@@ -429,19 +427,16 @@ elif st.session_state.step == 100:
 
             r3c1, r3c2 = st.columns(2)
             
-            # Carrom
             ca_fmts = [r.get('Carrom', {}).get('Format') for r in df['rules'] if isinstance(r, dict) and 'Carrom' in r]
             if ca_fmts: 
                 fig_carrom = px.pie(names=pd.Series(ca_fmts).value_counts().index, values=pd.Series(ca_fmts).value_counts().values, title="🎯 Carrom: Singles vs Doubles", hole=0.4)
                 r3c1.plotly_chart(fig_carrom, use_container_width=True)
 
-            # Snooker
             sn_types = [r.get('Snooker', {}).get('Type') for r in df['rules'] if isinstance(r, dict) and 'Snooker' in r]
             if sn_types: 
                 fig_snooker = px.pie(names=pd.Series(sn_types).value_counts().index, values=pd.Series(sn_types).value_counts().values, title="🎱 Snooker vs 8-Ball Pool", hole=0.4)
                 r3c2.plotly_chart(fig_snooker, use_container_width=True)
 
-            # Other
             other_desc = [r.get('Other', {}).get('Desc') for r in df['rules'] if isinstance(r, dict) and 'Other' in r and r.get('Other', {}).get('Desc')]
             if other_desc:
                 st.markdown("---")
