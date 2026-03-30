@@ -11,7 +11,9 @@ from datetime import datetime
 # ==========================================
 st.set_page_config(page_title="PIPECARE Sports 2026", layout="wide", page_icon="🏆")
 DB_FILE = 'pipecare_sports_master.csv'
-PORTAL_URL = "https://pipecare-sports-2026.streamlit.app" # Update with your actual URL
+
+# Set your actual deployed Streamlit URL here
+PORTAL_URL = "https://pipecare-sports-2026.streamlit.app" 
 
 st.markdown("""
     <style>
@@ -73,6 +75,7 @@ def save_or_update(data):
     st.cache_data.clear()
 
 def generate_qr(email):
+    # Generates a QR code linking back to the portal for future edits
     safe_id = hash_pin(email)[:8]
     qr = qrcode.QRCode(version=1, box_size=6, border=2)
     qr.add_data(f"Edit Registration:\n{PORTAL_URL}\nUser: {email}")
@@ -113,6 +116,8 @@ if not st.session_state.verified:
             if not df.empty and 'email' in df.columns and (df['email'] == email_in).any():
                 user_record = df[df['email'] == email_in].iloc[-1]
                 stored_pin = str(user_record['pin'])
+                
+                # Allow both hashed PINs and Legacy plain-text PINs
                 if stored_pin == hash_pin(pin_in) or stored_pin == str(pin_in):
                     rec = user_record.to_dict()
                     rec['selected_list'] = safe_parse(rec.get('selected_list', '[]'))
@@ -195,7 +200,10 @@ elif st.session_state.step < 100:
             if sports:
                 st.session_state.form['selected_list'] = sports
                 st.session_state.form['game_queue'] = sports
+                
+                # Ghost Data Purge: Remove configs for games unselected during edit
                 st.session_state.form['game_rules'] = {k: v for k, v in st.session_state.form.get('game_rules', {}).items() if k in sports}
+                
                 st.session_state.q_idx = 0
                 st.session_state.step = 10; st.rerun()
             else: st.error("Please select at least one sport.")
@@ -212,7 +220,11 @@ elif st.session_state.step < 100:
             if game == "Cricket":
                 c_fmts = st.multiselect("Select Cricket Formats", ["Proper Ground", "Box Cricket"], default=rules.get('Formats', ["Proper Ground"]))
                 new_rules['Formats'] = c_fmts
-                new_rules['Ball'] = st.selectbox("Preferred Ball Type", ["Hard Tennis", "Soft Tennis", "Leather"], index=["Hard Tennis", "Soft Tennis", "Leather"].index(rules.get('Ball', 'Hard Tennis')) if rules.get('Ball') in ["Hard Tennis", "Soft Tennis", "Leather"] else 0)
+                
+                ball_opts = ["Hard Tennis", "Soft Tennis", "Leather"]
+                current_ball = rules.get('Ball', 'Hard Tennis')
+                ball_idx = ball_opts.index(current_ball) if current_ball in ball_opts else 0
+                new_rules['Ball'] = st.selectbox("Preferred Ball Type", ball_opts, index=ball_idx)
                 
                 if "Proper Ground" in c_fmts:
                     st.write("🏟️ **Proper Ground Settings**")
@@ -231,11 +243,13 @@ elif st.session_state.step < 100:
                 new_rules['Categories'] = b_cats
                 
                 if any("Singles" in cat for cat in b_cats):
+                    st.write("**👤 Singles Bracket**")
                     c1, c2 = st.columns(2)
                     new_rules['s_pts'] = c1.selectbox("Singles Points per Set", ["11 Pts", "15 Pts", "21 Pts"], index=2, key="bs1")
                     new_rules['s_set'] = c2.selectbox("Singles Match Length", ["Best of 3", "Best of 5"], key="bs2")
                     
                 if any("Doubles" in cat for cat in b_cats):
+                    st.write("**👥 Doubles Bracket**")
                     c1, c2 = st.columns(2)
                     new_rules['d_pts'] = c1.selectbox("Doubles Points per Set", ["15 Pts", "21 Pts"], index=1, key="bd1")
                     new_rules['d_set'] = c2.selectbox("Doubles Match Length", ["Best of 3", "Best of 5"], key="bd2")
@@ -251,6 +265,8 @@ elif st.session_state.step < 100:
 
             elif game == "Carrom":
                 new_rules['Format'] = st.radio("Format", ["Singles", "Doubles"], index=0, horizontal=True)
+                # RESTORED MISSING LOGIC
+                new_rules['Rules'] = st.selectbox("Winning Condition", ["First to 25 Points", "Best of 3 Boards"], index=1)
 
             elif game == "Snooker":
                 col1, col2 = st.columns(2)
@@ -284,7 +300,7 @@ elif st.session_state.step < 100:
         st.rerun()
 
 # ==========================================
-# 6. DASHBOARD (3-TAB ARCHITECTURE)
+# 6. DASHBOARD (3-TAB ARCHITECTURE & RETURN QR)
 # ==========================================
 elif st.session_state.step == 100:
     st.balloons()
@@ -307,6 +323,8 @@ elif st.session_state.step == 100:
             if st.session_state.form.get('role') == "Athlete (Playing)":
                 st.markdown("---")
                 st.markdown("### 🎮 Approved Match Configurations")
+                
+                # Human Readable Configurations (Replaces raw JSON)
                 rules = st.session_state.form.get('game_rules', {})
                 if not rules:
                     st.write("No specific rules configured.")
@@ -317,12 +335,14 @@ elif st.session_state.step == 100:
                             clean_key = str(k).replace('_', ' ').title()
                             val_str = ", ".join(v) if isinstance(v, list) else str(v)
                             st.write(f"- *{clean_key}:* {val_str}")
+                            
             st.markdown('</div>', unsafe_allow_html=True)
             
         with col_qr:
             st.markdown("### 🔄 Edit Access Pass")
             st.image(generate_qr(st.session_state.form.get('email')), use_container_width=True)
             st.caption("Scan to return to this portal later.")
+            st.info(f"Portal Link: {PORTAL_URL}")
             
             st.write("")
             if st.button("🔄 Edit My Registration", use_container_width=True):
@@ -334,4 +354,97 @@ elif st.session_state.step == 100:
         st.markdown("### 📢 Important Event Guidelines")
         st.info(
             "👕 **Apparel:** Please wear comfortable, proper sports attire.\n\n"
-            "👟 **Footwear:** **Non-marking sports shoes are strictly mandatory** for Badminton and Table Tennis courts. Formal shoes or hard soles will not be permitted on the court.\n\
+            "👟 **Footwear:** **Non-marking sports shoes are strictly mandatory** for Badminton and Table Tennis courts. Formal shoes or hard soles will not be permitted on the court.\n\n"
+            "🏸 **Equipment:** Please bring your own **Racquets** for Badminton and TT. All communal equipment (Shuttles, TT Balls, Cricket bats/balls, Carrom boards, Snooker cues) will be provided by the organizing committee."
+        )
+        st.success("👉 **Want to see what everyone else is playing?** Click the **'HR & Logistics'** or **'Tournament Director'** tabs at the top of the page to explore live event analytics!")
+
+
+    # --- TAB 2: HR ANALYTICS ---
+    with tab2:
+        df = load_data()
+        if not df.empty:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Registrations", len(df))
+            m2.metric("Active Athletes", len(df[df['role'] == "Athlete (Playing)"]))
+            m3.metric("Audience / Support", len(df[df['role'] == "Audience/Support"]))
+
+            active_df = df[df['role'] != "Not Participating"]
+            if not active_df.empty:
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                
+                fig_day = px.pie(active_df, names='day', title="Preferred Day to Attend", hole=0.3, color_discrete_sequence=px.colors.sequential.Blues_r)
+                c1.plotly_chart(fig_day, use_container_width=True)
+                
+                fig_dist = px.histogram(active_df, x='distance', title="Travel Willingness Radius", color='unit', barmode='group', color_discrete_sequence=['#1E3A8A', '#3B82F6'])
+                c2.plotly_chart(fig_dist, use_container_width=True)
+
+            st.markdown("---")
+            all_sports = []
+            for s in df['selected_list']:
+                parsed = safe_parse(s)
+                if isinstance(parsed, list): 
+                    all_sports.extend(parsed)
+            
+            if all_sports:
+                sc = pd.Series(all_sports).value_counts().reset_index()
+                sc.columns = ["Sport", "Registrations"]
+                fig_sports = px.bar(sc, x="Sport", y="Registrations", title="Overall Game Popularity", color="Sport", color_discrete_sequence=px.colors.qualitative.Prism)
+                st.plotly_chart(fig_sports, use_container_width=True)
+
+    # --- TAB 3: TOURNAMENT DIRECTOR ANALYTICS ---
+    with tab3:
+        df = load_data()
+        if not df.empty:
+            df['rules'] = df['game_rules'].apply(safe_parse)
+            
+            r1c1, r1c2 = st.columns(2)
+            
+            # Cricket
+            c_formats = [fmt for r in df['rules'] if isinstance(r, dict) and 'Cricket' in r for fmt in r['Cricket'].get('Formats', [])]
+            if c_formats: 
+                fig_cricket = px.pie(names=pd.Series(c_formats).value_counts().index, values=pd.Series(c_formats).value_counts().values, title="🏏 Cricket: Ground vs Box", hole=0.4, color_discrete_sequence=['#10B981', '#F59E0B'])
+                r1c1.plotly_chart(fig_cricket, use_container_width=True)
+
+            # Badminton
+            b_cats = [cat for r in df['rules'] if isinstance(r, dict) and 'Badminton' in r for cat in r['Badminton'].get('Categories', [])]
+            if b_cats: 
+                fig_badminton = px.bar(x=pd.Series(b_cats).value_counts().index, y=pd.Series(b_cats).value_counts().values, title="🏸 Badminton: Brackets", labels={'x': 'Category', 'y': 'Entries'}, color_discrete_sequence=['#6366F1'])
+                r1c2.plotly_chart(fig_badminton, use_container_width=True)
+
+            r2c1, r2c2 = st.columns(2)
+            
+            # Table Tennis
+            tt_cats = [cat for r in df['rules'] if isinstance(r, dict) and 'Table Tennis' in r for cat in r['Table Tennis'].get('Categories', [])]
+            if tt_cats: 
+                fig_tt = px.pie(names=pd.Series(tt_cats).value_counts().index, values=pd.Series(tt_cats).value_counts().values, title="🏓 Table Tennis: Category Split", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+                r2c1.plotly_chart(fig_tt, use_container_width=True)
+
+            # Chess
+            ch_modes = [r.get('Chess', {}).get('Mode') for r in df['rules'] if isinstance(r, dict) and 'Chess' in r]
+            if ch_modes: 
+                fig_chess = px.pie(names=pd.Series(ch_modes).value_counts().index, values=pd.Series(ch_modes).value_counts().values, title="♟️ Chess: Mode Preference", hole=0.4, color_discrete_sequence=['#8B5CF6', '#EC4899'])
+                r2c2.plotly_chart(fig_chess, use_container_width=True)
+
+            r3c1, r3c2 = st.columns(2)
+            
+            # Carrom
+            ca_fmts = [r.get('Carrom', {}).get('Format') for r in df['rules'] if isinstance(r, dict) and 'Carrom' in r]
+            if ca_fmts: 
+                fig_carrom = px.pie(names=pd.Series(ca_fmts).value_counts().index, values=pd.Series(ca_fmts).value_counts().values, title="🎯 Carrom: Singles vs Doubles", hole=0.4)
+                r3c1.plotly_chart(fig_carrom, use_container_width=True)
+
+            # Snooker
+            sn_types = [r.get('Snooker', {}).get('Type') for r in df['rules'] if isinstance(r, dict) and 'Snooker' in r]
+            if sn_types: 
+                fig_snooker = px.pie(names=pd.Series(sn_types).value_counts().index, values=pd.Series(sn_types).value_counts().values, title="🎱 Snooker vs 8-Ball Pool", hole=0.4)
+                r3c2.plotly_chart(fig_snooker, use_container_width=True)
+
+            # Other
+            other_desc = [r.get('Other', {}).get('Desc') for r in df['rules'] if isinstance(r, dict) and 'Other' in r and r.get('Other', {}).get('Desc')]
+            if other_desc:
+                st.markdown("---")
+                st.write("**➕ Other Games Requested by Employees:**")
+                for desc in set(other_desc): 
+                    st.info(f"• {desc}")
