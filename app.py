@@ -27,7 +27,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. DATA ENGINE (Hashing & Safe Save)
+# 2. DATA ENGINE (Hashing, Migration, & Safe Save)
 # ==========================================
 @st.cache_data(ttl=60)
 def load_data():
@@ -89,7 +89,7 @@ for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
 # ==========================================
-# 4. SECURE AUTHENTICATION GATE
+# 4. SECURE AUTHENTICATION GATE (Legacy Compatible)
 # ==========================================
 if not st.session_state.verified:
     st.title("🏆 PIPECARE Noida Sports Portal")
@@ -111,18 +111,24 @@ if not st.session_state.verified:
             df = load_data()
             if not df.empty and 'email' in df.columns and (df['email'] == email_in).any():
                 user_record = df[df['email'] == email_in].iloc[-1]
-                # Compare hashed input with hashed stored PIN
-                if str(user_record['pin']) == hash_pin(pin_in):
+                
+                # HYBRID CHECK: Allows hashed PINs (new) OR plain-text PINs (legacy users)
+                stored_pin = str(user_record['pin'])
+                if stored_pin == hash_pin(pin_in) or stored_pin == str(pin_in):
                     rec = user_record.to_dict()
                     rec['selected_list'] = safe_parse(rec.get('selected_list', '[]'))
                     rec['game_rules'] = safe_parse(rec.get('game_rules', '{}'))
+                    
                     st.session_state.form = rec
-                    st.session_state.form['pin'] = pin_in # Keep raw in state for re-saving
+                    # Crucial: Keep raw PIN in state so save_or_update can hash it later
+                    st.session_state.form['pin'] = pin_in 
                     st.session_state.verified = True
                     st.session_state.step = 100 
                     st.rerun()
-                else: st.error("Incorrect PIN for this email.")
+                else: 
+                    st.error("Incorrect PIN for this email.")
             else:
+                # NEW USER
                 st.session_state.form = {'email': email_in, 'pin': pin_in, 'game_rules': {}}
                 st.session_state.verified = True
                 st.session_state.step = 1
@@ -134,7 +140,6 @@ if not st.session_state.verified:
 # ==========================================
 elif st.session_state.step < 100:
     
-    # Visual Progress Indicator
     progress_val = min(st.session_state.step / 5, 1.0) if st.session_state.step < 10 else 0.8
     st.progress(progress_val)
 
@@ -193,7 +198,6 @@ elif st.session_state.step < 100:
             if sports:
                 st.session_state.form['selected_list'] = sports
                 st.session_state.form['game_queue'] = sports
-                # Ghost Data Purge: Remove configs for games unselected during an edit
                 st.session_state.form['game_rules'] = {k: v for k, v in st.session_state.form.get('game_rules', {}).items() if k in sports}
                 st.session_state.q_idx = 0
                 st.session_state.step = 10; st.rerun()
@@ -263,7 +267,6 @@ elif st.session_state.step < 100:
 
         st.write("") 
         c_back, c_next = st.columns(2)
-        # Unique Keys prevent Streamlit duplicate widget errors in loops
         if c_back.button("⬅️ Previous", key=f"back_{game}"):
             if st.session_state.q_idx > 0: st.session_state.q_idx -= 1
             else: st.session_state.step = 3
