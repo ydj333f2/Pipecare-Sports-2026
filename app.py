@@ -9,7 +9,7 @@ import urllib.parse
 # 1. ADMIN CONFIGURATION
 # ==========================================
 # REPLACE WITH YOUR WHATSAPP NUMBER (with country code, no '+')
-ADMIN_WHATSAPP = "919999999999" 
+ADMIN_WHATSAPP = "918328099699" 
 # THE PIN YOU WILL GIVE TO EMPLOYEES WHO MESSAGE YOU
 DAILY_ACCESS_PIN = "8899" 
 DB_FILE = 'pipecare_sports_master.csv'
